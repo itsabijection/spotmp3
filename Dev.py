@@ -20,15 +20,19 @@ def name_to_link(s):
     searches youtube '{song name} {artist name} audio' and gives back a link to the first result
     probably somewhat fragile
     """
-    #okay maybe we scape instead of using API
-    url = f"http://www.youtube.com/results?search_query={urlencode(s + ' audio')}"
-    contents = requests.get(url).content
-    soup = BeautifulSoup(contents, features='lxml')
-    video_id = re.search(r'"url":"\/watch\?v=(...........)',str(soup)).group(1)
-    return "http://www.youtube.com/watch?v=" + video_id
-    #url = f"" idk check api docs again
-    #video_id = json_to_dict(urlopen(url).read())["items"][0]["id"]["videoId"]
-    #return "https://www.youtube.com/watch?v=" + video_id
+    try:
+        #okay maybe we scape instead of using API
+        url = f"http://www.youtube.com/results?search_query={urlencode(s + ' audio')}"
+        contents = requests.get(url).content
+        soup = BeautifulSoup(contents, features='lxml')
+        video_id = re.search(r'"url":"\/watch\?v=(...........)',str(soup)).group(1)
+        return "http://www.youtube.com/watch?v=" + video_id
+        #url = f"" idk check api docs again
+        #video_id = json_to_dict(urlopen(url).read())["items"][0]["id"]["videoId"]
+        #return "https://www.youtube.com/watch?v=" + video_id
+    except:
+        print(f"Failed to download {s}")
+        return None
 def playlist_to_links(playlist_link, sp, skip = 0):
     """converts a spotify playlist into a list of youtube links"""
     return [name_to_link(x) for x in playlist_to_names(playlist_link, sp)[skip:]]
@@ -37,23 +41,27 @@ def index_to_alph(x):
     return [a + b for a in alph for b in alph][x]
 def download_playlist(playlist_link, skip = 0):
     """finds the songs on youtube then downloads them"""
-    cid = "XXX"
-    secret = "XXX"
+    place = str(input("Please enter where you would like to create the folder with the mp3s (e.g. /Users/{username}/Desktop): "))
+    cid = "3ea1f7164df446048745d50c5195e8fa"
+    secret = "6c336b58761a449daff72a855541cc7c"
     client_credentials_manager = SpotifyClientCredentials(client_id=cid, client_secret=secret)
     sp = spotipy.Spotify(client_credentials_manager = client_credentials_manager)
-    links = playlist_to_links(playlist_link, sp, skip = 0)
+    links = [x for x in playlist_to_links(playlist_link, sp, skip = 0) if x is not None]
     playlist_URI = playlist_link.split("/")[-1].split("?")[0]
     playlist_name = sp.playlist(playlist_URI)["name"]
+    os.chdir(place)
     #fragile?
-    os.chdir(str(input("Please enter where you would like to create the folder with the mp3s (e.g. /Users/{username}/Desktop): ")))
     for i, link in enumerate(links):
-        yt = YouTube(link)
-        video = yt.streams.filter(only_audio=True).first()
-        out_file = video.download(output_path=playlist_name)
-        base, ext = os.path.splitext(out_file)
-        new_file = base + '.mp3'
-        print("New file at ", new_file)
-        os.rename(out_file, new_file)
+        try:
+            yt = YouTube(link)
+            video = yt.streams.filter(only_audio=True).first()
+            out_file = video.download(output_path=playlist_name)
+            base, ext = os.path.splitext(out_file)
+            new_file = base + '.mp3'
+            print("New file at ", new_file)
+            os.rename(out_file, new_file)
+        except:
+            print(f"Failed to download {link}")
     rename_by_date(playlist_name)
 def rename_by_date(d, offset = 0):
     files = os.listdir(d)
